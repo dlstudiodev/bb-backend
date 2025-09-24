@@ -54,6 +54,8 @@
 │        ↕            │    │        ↕            │    │                     │
 │ INFRASTRUCTURE      │    │ INFRASTRUCTURE      │    │                     │
 │ SupabaseAdapter     │    │ SupabaseAdapter     │    │                     │
+│                     │    │ EmailClient         │    │                     │
+│                     │    │ PushClient          │    │                     │
 └─────────────────────┘    └─────────────────────┘    └─────────────────────┘
 ```
 
@@ -102,27 +104,34 @@ src/
 ├── app.ts                           # Point d'entrée Hono
 ├── routes/
 │   └── workflows.ts                 # POST /workflows/* endpoints
-├── triggers/
+├── trigger/
 │   ├── workflows/                   # Workflows principaux
-│   │   └── inactive-users.job.ts    # Workflow complet orchestration
+│   │   └── remind-inactive-users.ts # Workflow complet orchestration
+│   ├── schedulers/                  # CRON schedulers par fréquence
+│   │   ├── daily.scheduler.ts       # Jobs quotidiens (inactive users, cleanup...)
+│   │   ├── weekly.scheduler.ts      # Jobs hebdomadaires
+│   │   └── monthly.scheduler.ts     # Jobs mensuels
 │   └── steps/                       # Briques réutilisables
-│       ├── find-inactive-users.job.ts
-│       ├── apply-antispam.job.ts
-│       └── send-notifications.job.ts
+│       ├── find-inactive-users.ts
+│       ├── apply-antispam.ts
+│       └── send-notifications.ts
 ├── domain/                          # Logique métier pure
 │   ├── users/
 │   │   ├── user.types.ts           # Interfaces & types
-│   │   ├── user.service.ts         # Règles anti-spam
+│   │   ├── user.service.ts         # Logique métier Users
 │   │   └── user.repository.ts      # Interface repository
 │   └── notifications/
-│       └── notification.service.ts
-└── infrastructure/                  # Adapters externes
+│       ├── notification.types.ts   # Types Notifications
+│       ├── notification.service.ts # Logique anti-spam & notifications
+│       └── notification.repository.ts # Interface repository
+└── infrastructure/                  # Adapters & clients externes
     ├── database/
-    │   └── supabase.adapter.ts     # Implémentation Supabase
+    │   ├── supabase-user.adapter.ts     # User repository impl
+    │   └── supabase-notification.adapter.ts # Notification repository impl
     ├── email/
-    │   └── email.service.ts
-    └── notifications/
-        └── push.service.ts
+    │   └── email.client.ts              # Client API email (Gmail, Sendgrid...)
+    └── messaging/
+        └── push-notification.client.ts  # Client push (Firebase, Apple...)
 ```
 
 ## 5. Flux d'Exécution - Cas "Relance Utilisateurs Inactifs"
