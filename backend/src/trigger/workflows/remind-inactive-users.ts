@@ -60,7 +60,8 @@ export const remindInactiveUsersTask = task({
     console.log("📧 Step 3: Envoi des notifications...");
     const step3Result = await sendExternalNotificationsStep.triggerAndWait({
       users: inactiveUsers,
-      hoursAgo: (payload.daysInactive || 15) * 24
+      hoursAgo: (payload.daysInactive || 15) * 24,
+      channels: ["email"] // Par défaut email seulement
     });
 
     if (!step3Result.ok) {

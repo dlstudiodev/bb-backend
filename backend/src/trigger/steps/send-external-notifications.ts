@@ -1,10 +1,17 @@
 import { task } from "@trigger.dev/sdk";
 import type { User } from "../../domain/users/user.types";
 import { userService } from "../../domain/users/user.service";
+import { emailService } from "../../infrastructure/email/resend-email.service";
+
+enum NotificationChannel {
+  EMAIL = "email",
+  PUSH = "push"
+}
 
 interface NotificationPayload {
   users: User[];
   hoursAgo: number;
+  channels: NotificationChannel[];
 }
 
 interface NotificationResult {
@@ -12,23 +19,27 @@ interface NotificationResult {
   usersWithEmails: number;
   usersWithoutEmails: number;
   emailsSent: number;
+  pushSent: number;
   errors: string[];
   emails: string[]; // Pour debug
+  channels: NotificationChannel[];
 }
 
 /**
  * Step 3: Send external notifications
  *
- * Récupère les emails des users inactifs et simule l'envoi pour test.
+ * Sends external notifications (email/push) to inactive users
+ * based on specified channels.
  */
 export const sendExternalNotificationsStep = task({
   id: "send-external-notifications",
   run: async (payload: NotificationPayload): Promise<NotificationResult> => {
-    const { users, hoursAgo } = payload;
+    const { users, hoursAgo, channels = [NotificationChannel.EMAIL] } = payload;
 
-    console.log(`📧 Step 3: Processing ${users.length} inactive users for email notifications`);
+    console.log(`📧 Step 3: Processing ${users.length} inactive users for external notifications`);
+    console.log(`📢 Channels enabled: ${channels.join(', ')}`);
 
-    // Récupérer les emails des users inactifs (pour tester le service)
+    // Retrieve user emails for notification channels that need them
     const userIds = users.map(user => user.id);
     const userEmails = await userService.getUserEmailsFromIds(userIds);
 
@@ -37,23 +48,50 @@ export const sendExternalNotificationsStep = task({
       console.log(`👤 ${userId}: ${email}`);
     });
 
-    // Mock du return pour test
-    return {
+    // Préparer le résultat
+    const result: NotificationResult = {
       totalUsers: users.length,
       usersWithEmails: userEmails.length,
       usersWithoutEmails: users.length - userEmails.length,
-      emailsSent: Math.floor(userEmails.length * 0.9), // 90% envoyés avec succès
-      errors: userEmails.length > 5 ? ["Failed to send to user_123: SMTP error"] : [],
-      emails: userEmails.map(item => item.email) // Pour debug dans dashboard
+      emailsSent: 0,
+      pushSent: 0,
+      errors: [],
+      emails: userEmails.map(item => item.email), // For debug
+      channels
     };
 
-    // TODO: Version réelle
-    /*
-    const userIds = users.map(user => user.id);
-    const userEmails = await userService.getUserEmailsFromIds(userIds);
+    // Send notifications according to enabled channels
+    for (const { userId, email } of userEmails) {
+      try {
+        // Find user details for personalized notifications
+        const user = users.find(u => u.id === userId);
 
-    // Envoi via SendGrid
-    // Return real stats
-    */
+        // Send email if requested
+        if (channels.includes(NotificationChannel.EMAIL)) {
+          await emailService.sendInactivityEmail(
+            email,
+            "Champion", // TODO: get real user name if available
+            user?.daysSinceLastActivity || 0,
+            user?.hasWorkoutHistory || false
+          );
+          result.emailsSent++;
+          console.log(`✅ Email sent to ${email}`);
+        }
+
+        // Send push if requested (TODO: implement with Capacitor)
+        if (channels.includes(NotificationChannel.PUSH)) {
+          console.log(`🔔 Push notification would be sent to user ${userId} (TODO: implement with Capacitor)`);
+          result.pushSent++;
+        }
+
+      } catch (error) {
+        const errorMsg = `Failed to send notification to ${email}: ${error}`;
+        console.error(errorMsg);
+        result.errors.push(errorMsg);
+      }
+    }
+
+    console.log(`📊 Results: ${result.emailsSent} emails sent, ${result.pushSent} push notifications sent`);
+    return result;
   },
 });
