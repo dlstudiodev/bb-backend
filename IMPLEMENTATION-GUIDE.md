@@ -4,15 +4,16 @@
 
 ### ✅ Implémenté
 - **Hono API** : Routes health et workflows
-- **trigger.dev** : Workflow principal fonctionnel
-- **TypeScript** : Types et interfaces complètes
-- **Structure** : Architecture YAGNI respectée
+- **trigger.dev** : Workflow principal avec Step 1 fonctionnelle
+- **Supabase** : Configuration et connexion établie
+- **Domain layer** : User types, repository, service complets
+- **Step atomique** : find-inactive-users avec vraies données
+- **TypeScript** : Types et interfaces cohérentes
 
 ### 🔄 En Cours / À Faire
-- **Supabase** : Configuration et connexion
-- **Steps atomiques** : find-inactive-users, send-notifications
-- **Domain layer** : Services métier
-- **Anti-spam** : Table notifications_log
+- **Step 2** : Anti-spam rules (simulation actuelle)
+- **Step 3** : Send notifications (email/push)
+- **Scheduler** : Configuration CRON automatique
 
 ---
 
