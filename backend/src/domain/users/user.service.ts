@@ -25,4 +25,20 @@ export const userService = {
   async getRecentInactiveUsers(hoursAgo: number): Promise<User[]> {
     return supabaseUserRepository.getUsersWithRecentInactivityNotifications(hoursAgo);
   },
+
+  /**
+   * Get email addresses for specific user IDs.
+   *
+   * @param userIds - Array of user IDs to fetch emails for
+   * @returns Array of user ID to email mappings
+   * @throws Error if operation fails
+   *
+   * @example
+   * ```typescript
+   * const emails = await userService.getUserEmailsFromIds(["user_1", "user_2"]);
+   * ```
+   */
+  async getUserEmailsFromIds(userIds: string[]): Promise<{ userId: string; email: string }[]> {
+    return supabaseUserRepository.getUserEmailsFromIds(userIds);
+  },
 };

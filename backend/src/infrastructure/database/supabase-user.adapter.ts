@@ -86,6 +86,48 @@ async function getUsersWithRecentInactivityNotifications(hoursAgo: number): Prom
  * Uses modern functional approach instead of classes for better tree-shaking
  * and simplified testing.
  */
+/**
+ * Retrieves email addresses for specific user IDs from auth.users table.
+ * Uses service role key to access auth schema.
+ *
+ * @param userIds - Array of user IDs to fetch emails for
+ * @returns Array of user ID to email mappings
+ * @throws Error if database query fails
+ *
+ * @example
+ * ```typescript
+ * const emails = await getUserEmailsFromIds(["user_1", "user_2"]);
+ * // returns [{ userId: "user_1", email: "user1@example.com" }, ...]
+ * ```
+ */
+async function getUserEmailsFromIds(userIds: string[]): Promise<{ userId: string; email: string }[]> {
+  if (userIds.length === 0) {
+    return [];
+  }
+
+  const supabase = createSupabaseClient();
+
+  // Call the PostgreSQL function to get user emails
+  const { data, error } = await supabase.rpc('get_user_emails_by_ids', {
+    user_ids: userIds
+  });
+
+  if (error) {
+    throw new Error(`Failed to fetch user emails: ${error.message}`);
+  }
+
+  if (!data) {
+    return [];
+  }
+
+  // Transform to expected format (function returns userid/email)
+  return data.map((row: { userid: string; email: string }) => ({
+    userId: row.userid,
+    email: row.email
+  }));
+}
+
 export const supabaseUserRepository: UserRepository = {
   getUsersWithRecentInactivityNotifications,
+  getUserEmailsFromIds,
 };

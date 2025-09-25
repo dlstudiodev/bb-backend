@@ -1,5 +1,6 @@
 import { task } from "@trigger.dev/sdk/v3";
 import { findInactiveUsersStep } from "../steps/find-inactive-users";
+import { sendExternalNotificationsStep } from "../steps/send-external-notifications";
 
 /**
  * Payload for inactive users reminder workflow
@@ -14,8 +15,10 @@ export interface RemindInactiveUsersPayload {
  */
 export interface RemindInactiveUsersResult {
   success: boolean;
+  usersFound: number;
   usersProcessed: number;
   usersExcluded: number;
+  emailsSent: number;
   timestamp: string;
 }
 
@@ -53,17 +56,28 @@ export const remindInactiveUsersTask = task({
     await new Promise(resolve => setTimeout(resolve, 500));
     console.log("✅ Filtered to 12 users (3 excluded by anti-spam)");
 
-    // Step 3: Simulation envoi notifications
+    // Step 3: Envoi des notifications externes
     console.log("📧 Step 3: Envoi des notifications...");
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    console.log("✅ Notifications sent to 12 users");
+    const step3Result = await sendExternalNotificationsStep.triggerAndWait({
+      users: inactiveUsers,
+      hoursAgo: (payload.daysInactive || 15) * 24
+    });
+
+    if (!step3Result.ok) {
+      throw new Error(`Step 3 failed: ${step3Result.error}`);
+    }
+
+    const notificationResults = step3Result.output;
+    console.log(`✅ Notifications: ${notificationResults.emailsSent} sent, ${notificationResults.usersWithoutEmails} no email`);
 
     console.log("🎉 Workflow terminé avec succès !");
 
     return {
       success: true,
-      usersProcessed: Math.max(0, inactiveUsers.length - 3), // Simulate anti-spam filtering
-      usersExcluded: Math.min(3, inactiveUsers.length),
+      usersFound: inactiveUsers.length,
+      usersProcessed: notificationResults.usersWithEmails,
+      usersExcluded: notificationResults.usersWithoutEmails,
+      emailsSent: notificationResults.emailsSent,
       timestamp: new Date().toISOString()
     };
   }
