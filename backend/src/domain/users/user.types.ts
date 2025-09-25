@@ -7,4 +7,6 @@ export interface User {
   daysSinceLastActivity?: number;
   /** Whether the user has any workout history */
   hasWorkoutHistory?: boolean;
+  /** User email (enriched by workflow when needed) */
+  email?: string;
 }

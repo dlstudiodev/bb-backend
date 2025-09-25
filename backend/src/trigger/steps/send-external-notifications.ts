@@ -1,17 +1,16 @@
 import { task } from "@trigger.dev/sdk";
 import type { User } from "../../domain/users/user.types";
-import { userService } from "../../domain/users/user.service";
 import { emailService } from "../../infrastructure/email/resend-email.service";
 
 enum NotificationChannel {
   EMAIL = "email",
-  PUSH = "push"
 }
 
 interface NotificationPayload {
-  users: User[];
+  users: User[]; // Users enriched with email
   hoursAgo: number;
   channels: NotificationChannel[];
+  mockMode?: boolean; // For testing without spam
 }
 
 interface NotificationResult {
@@ -19,79 +18,107 @@ interface NotificationResult {
   usersWithEmails: number;
   usersWithoutEmails: number;
   emailsSent: number;
-  pushSent: number;
   errors: string[];
-  emails: string[]; // Pour debug
   channels: NotificationChannel[];
 }
 
 /**
  * Step 3: Send external notifications
  *
- * Sends external notifications (email/push) to inactive users
- * based on specified channels.
+ * Sends external email notifications to all inactive users
+ * in a single efficient run. Supports mock mode for testing.
+ *
+ * @step send-external-notifications
+ * @description Processes users and sends personalized re-engagement emails
  */
 export const sendExternalNotificationsStep = task({
   id: "send-external-notifications",
   run: async (payload: NotificationPayload): Promise<NotificationResult> => {
-    const { users, hoursAgo, channels = [NotificationChannel.EMAIL] } = payload;
+    const {
+      users,
+      hoursAgo,
+      channels = [NotificationChannel.EMAIL],
+      mockMode = false,
+    } = payload;
 
-    console.log(`📧 Step 3: Processing ${users.length} inactive users for external notifications`);
-    console.log(`📢 Channels enabled: ${channels.join(', ')}`);
-
-    // Retrieve user emails for notification channels that need them
-    const userIds = users.map(user => user.id);
-    const userEmails = await userService.getUserEmailsFromIds(userIds);
-
-    console.log(`📊 Retrieved emails for ${userEmails.length}/${users.length} users`);
-    userEmails.forEach(({ userId, email }) => {
-      console.log(`👤 ${userId}: ${email}`);
+    console.log("[NOTIFICATIONS] Starting notification processing", {
+      totalUsers: users.length,
+      channels: channels,
+      mockMode: mockMode
     });
 
-    // Préparer le résultat
+    // Initialize result
     const result: NotificationResult = {
       totalUsers: users.length,
-      usersWithEmails: userEmails.length,
-      usersWithoutEmails: users.length - userEmails.length,
+      usersWithEmails: 0,
+      usersWithoutEmails: 0,
       emailsSent: 0,
-      pushSent: 0,
       errors: [],
-      emails: userEmails.map(item => item.email), // For debug
-      channels
+      channels,
     };
 
-    // Send notifications according to enabled channels
-    for (const { userId, email } of userEmails) {
-      try {
-        // Find user details for personalized notifications
-        const user = users.find(u => u.id === userId);
+    // Filter to test email only in mock mode
+    const filteredUsers = mockMode
+      ? users.filter((user) => user.email === "hello@d-l.studio")
+      : users;
 
-        // Send email if requested
-        if (channels.includes(NotificationChannel.EMAIL)) {
-          await emailService.sendInactivityEmail(
-            email,
-            "Champion", // TODO: get real user name if available
-            user?.daysSinceLastActivity || 0,
-            user?.hasWorkoutHistory || false
-          );
-          result.emailsSent++;
-          console.log(`✅ Email sent to ${email}`);
+    console.log("[NOTIFICATIONS] Users filtered", {
+      filteredCount: filteredUsers.length,
+      originalCount: users.length,
+      mockMode: mockMode,
+      testEmail: mockMode ? "hello@d-l.studio" : null
+    });
+
+    // Process filtered users
+    for (const user of filteredUsers) {
+      try {
+        // Check if email is available for email notifications
+        if (!user.email && channels.includes(NotificationChannel.EMAIL)) {
+          console.log("[NOTIFICATIONS] No email found", { userId: user.id });
+          result.usersWithoutEmails++;
+          continue;
         }
 
-        // Send push if requested (TODO: implement with Capacitor)
-        if (channels.includes(NotificationChannel.PUSH)) {
-          console.log(`🔔 Push notification would be sent to user ${userId} (TODO: implement with Capacitor)`);
-          result.pushSent++;
+        if (user.email) {
+          result.usersWithEmails++;
+        }
+
+        // Send email if requested and email available
+        if (channels.includes(NotificationChannel.EMAIL) && user.email) {
+          await emailService.sendInactivityEmail(
+            user.email,
+            "Champion", // TODO: get real user name if available
+            user.daysSinceLastActivity || 0,
+            user.hasWorkoutHistory || false
+          );
+          result.emailsSent++;
+          console.log("[NOTIFICATIONS] Email sent", {
+            email: user.email,
+            userId: user.id,
+            daysSinceActivity: user.daysSinceLastActivity,
+            hasWorkoutHistory: user.hasWorkoutHistory
+          });
         }
 
       } catch (error) {
-        const errorMsg = `Failed to send notification to ${email}: ${error}`;
-        console.error(errorMsg);
+        const errorMsg = `Failed to send notification to user ${user.id}: ${error}`;
+        console.error("[NOTIFICATIONS] Send failed", {
+          userId: user.id,
+          email: user.email,
+          error: String(error)
+        });
         result.errors.push(errorMsg);
       }
     }
 
-    console.log(`📊 Results: ${result.emailsSent} emails sent, ${result.pushSent} push notifications sent`);
+    console.log("[NOTIFICATIONS] Processing completed", {
+      totalUsers: result.totalUsers,
+      usersWithEmails: result.usersWithEmails,
+      usersWithoutEmails: result.usersWithoutEmails,
+      emailsSent: result.emailsSent,
+      errors: result.errors.length,
+      successRate: `${Math.round((result.emailsSent / Math.max(result.usersWithEmails, 1)) * 100)}%`
+    });
     return result;
   },
 });

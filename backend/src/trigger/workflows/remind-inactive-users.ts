@@ -1,6 +1,7 @@
 import { task } from "@trigger.dev/sdk/v3";
 import { findInactiveUsersStep } from "../steps/find-inactive-users";
 import { sendExternalNotificationsStep } from "../steps/send-external-notifications";
+import { userService } from "../../domain/users/user.service";
 
 /**
  * Payload for inactive users reminder workflow
@@ -23,8 +24,11 @@ export interface RemindInactiveUsersResult {
 }
 
 /**
- * Workflow to remind inactive users via email and in-app notifications.
+ * Workflow to remind inactive users via email notifications.
  * Includes anti-spam rules to prevent over-messaging.
+ *
+ * @workflow remind-inactive-users
+ * @description Identifies inactive users and sends them re-engagement emails
  */
 export const remindInactiveUsersTask = task({
   id: "remind-inactive-users",
@@ -35,11 +39,16 @@ export const remindInactiveUsersTask = task({
     maxTimeoutInMs: 30_000,
   },
   run: async (payload: RemindInactiveUsersPayload): Promise<RemindInactiveUsersResult> => {
-    console.log("🎯 Workflow 'Relance Utilisateurs Inactifs' démarré");
-    console.log("📊 Paramètres:", payload);
+    console.log("[WORKFLOW] Starting remind-inactive-users", {
+      workflowId: "remind-inactive-users",
+      daysInactive: payload.daysInactive || 15,
+      timestamp: new Date().toISOString()
+    });
 
-    // Step 1: Récupération utilisateurs inactifs
-    console.log("📋 Step 1: Recherche utilisateurs inactifs...");
+    // Step 1: Find inactive users
+    console.log("[STEP-1] Finding inactive users", {
+      hoursAgo: (payload.daysInactive || 15) * 24
+    });
     const step1Result = await findInactiveUsersStep.triggerAndWait({
       hoursAgo: (payload.daysInactive || 15) * 24 // Convert days to hours
     });
@@ -49,29 +58,70 @@ export const remindInactiveUsersTask = task({
     }
 
     const inactiveUsers = step1Result.output.users;
-    console.log(`✅ Found ${inactiveUsers.length} inactive users`);
+    console.log("[STEP-1] Found inactive users", {
+      count: inactiveUsers.length,
+      status: "success"
+    });
 
-    // Step 2: Simulation règles anti-spam
-    console.log("🛡️ Step 2: Application des règles anti-spam...");
+    // Step 2: Apply anti-spam rules (TODO: implement real logic)
+    console.log("[STEP-2] Applying anti-spam rules");
     await new Promise(resolve => setTimeout(resolve, 500));
-    console.log("✅ Filtered to 12 users (3 excluded by anti-spam)");
+    console.log("[STEP-2] Anti-spam filtering completed", {
+      usersAfterFilter: 12,
+      usersExcluded: 3,
+      status: "success"
+    });
 
-    // Step 3: Envoi des notifications externes
-    console.log("📧 Step 3: Envoi des notifications...");
+    // Step 3: Retrieve emails and enrich users
+    console.log("[STEP-3] Retrieving user emails", {
+      userCount: inactiveUsers.length
+    });
+    const userIds = inactiveUsers.map(user => user.id);
+    const userEmails = await userService.getUserEmailsFromIds(userIds);
+    console.log("[STEP-3] Retrieved emails", {
+      emailsFound: userEmails.length,
+      totalUsers: inactiveUsers.length,
+      coverage: `${Math.round((userEmails.length / inactiveUsers.length) * 100)}%`
+    });
+
+    // Enrich users with emails
+    const usersWithEmails = inactiveUsers.map(user => {
+      const userEmail = userEmails.find(ue => ue.userId === user.id);
+      return {
+        ...user,
+        email: userEmail?.email
+      };
+    });
+
+    // Step 4: Send notifications (single efficient run)
+    console.log("[STEP-4] Sending notifications", {
+      userCount: usersWithEmails.length,
+      mockMode: true
+    });
     const step3Result = await sendExternalNotificationsStep.triggerAndWait({
-      users: inactiveUsers,
+      users: usersWithEmails,
       hoursAgo: (payload.daysInactive || 15) * 24,
-      channels: ["email"] // Par défaut email seulement
+      channels: ["email"], // Par défaut email seulement
+      mockMode: true // TEST MODE: pas de spam users
     });
 
     if (!step3Result.ok) {
-      throw new Error(`Step 3 failed: ${step3Result.error}`);
+      throw new Error(`Step 4 failed: ${step3Result.error}`);
     }
 
     const notificationResults = step3Result.output;
-    console.log(`✅ Notifications: ${notificationResults.emailsSent} sent, ${notificationResults.usersWithoutEmails} no email`);
+    console.log("[STEP-4] Notification results", {
+      emailsSent: notificationResults.emailsSent,
+      usersWithoutEmails: notificationResults.usersWithoutEmails,
+      errors: notificationResults.errors.length,
+      status: "success"
+    });
 
-    console.log("🎉 Workflow terminé avec succès !");
+    console.log("[WORKFLOW] Completed successfully", {
+      workflowId: "remind-inactive-users",
+      duration: Date.now(),
+      status: "success"
+    });
 
     return {
       success: true,
