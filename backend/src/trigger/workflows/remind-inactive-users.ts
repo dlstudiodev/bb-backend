@@ -1,4 +1,5 @@
 import { task } from "@trigger.dev/sdk/v3";
+import { findInactiveUsersStep } from "../steps/find-inactive-users";
 
 /**
  * Payload for inactive users reminder workflow
@@ -34,10 +35,18 @@ export const remindInactiveUsersTask = task({
     console.log("🎯 Workflow 'Relance Utilisateurs Inactifs' démarré");
     console.log("📊 Paramètres:", payload);
 
-    // Step 1: Simulation récupération utilisateurs inactifs
+    // Step 1: Récupération utilisateurs inactifs
     console.log("📋 Step 1: Recherche utilisateurs inactifs...");
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    console.log("✅ Found 15 inactive users");
+    const step1Result = await findInactiveUsersStep.triggerAndWait({
+      hoursAgo: (payload.daysInactive || 15) * 24 // Convert days to hours
+    });
+
+    if (!step1Result.ok) {
+      throw new Error(`Step 1 failed: ${step1Result.error}`);
+    }
+
+    const inactiveUsers = step1Result.output.users;
+    console.log(`✅ Found ${inactiveUsers.length} inactive users`);
 
     // Step 2: Simulation règles anti-spam
     console.log("🛡️ Step 2: Application des règles anti-spam...");
@@ -53,8 +62,8 @@ export const remindInactiveUsersTask = task({
 
     return {
       success: true,
-      usersProcessed: 12,
-      usersExcluded: 3,
+      usersProcessed: Math.max(0, inactiveUsers.length - 3), // Simulate anti-spam filtering
+      usersExcluded: Math.min(3, inactiveUsers.length),
       timestamp: new Date().toISOString()
     };
   }
