@@ -1,14 +1,17 @@
 import { task } from "@trigger.dev/sdk/v3";
 import { findInactiveUsersStep } from "../steps/find-inactive-users";
-import { sendExternalNotificationsStep } from "../steps/send-external-notifications";
+import { sendExternalNotificationsStep, NotificationChannel } from "../steps/send-external-notifications";
 import { userService } from "../../domain/users/user.service";
+
+// Default window for recent notifications (in days)
+const DEFAULT_WINDOW_DAYS = 1;
 
 /**
  * Payload for inactive users reminder workflow
  */
 export interface RemindInactiveUsersPayload {
-  /** Number of days of inactivity to consider */
-  daysInactive?: number;
+  /** Number of days to look back for recent notifications (default: 1 day) */
+  windowDays?: number;
 }
 
 /**
@@ -39,18 +42,20 @@ export const remindInactiveUsersTask = task({
     maxTimeoutInMs: 30_000,
   },
   run: async (payload: RemindInactiveUsersPayload): Promise<RemindInactiveUsersResult> => {
+    const windowDays = payload.windowDays || DEFAULT_WINDOW_DAYS;
+
     console.log("[WORKFLOW] Starting remind-inactive-users", {
       workflowId: "remind-inactive-users",
-      daysInactive: payload.daysInactive || 15,
+      windowDays,
       timestamp: new Date().toISOString()
     });
 
     // Step 1: Find inactive users
     console.log("[STEP-1] Finding inactive users", {
-      hoursAgo: (payload.daysInactive || 15) * 24
+      hoursAgo: windowDays * 24
     });
     const step1Result = await findInactiveUsersStep.triggerAndWait({
-      hoursAgo: (payload.daysInactive || 15) * 24 // Convert days to hours
+      hoursAgo: windowDays * 24 // Convert days to hours
     });
 
     if (!step1Result.ok) {
@@ -100,8 +105,8 @@ export const remindInactiveUsersTask = task({
     });
     const step3Result = await sendExternalNotificationsStep.triggerAndWait({
       users: usersWithEmails,
-      hoursAgo: (payload.daysInactive || 15) * 24,
-      channels: ["email"], // Par défaut email seulement
+      hoursAgo: windowDays * 24,
+      channels: [NotificationChannel.EMAIL], // Default: email only
       mockMode: true // TEST MODE: pas de spam users
     });
 

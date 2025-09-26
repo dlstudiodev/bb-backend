@@ -2,7 +2,7 @@ import { task } from "@trigger.dev/sdk";
 import type { User } from "../../domain/users/user.types";
 import { emailService } from "../../infrastructure/email/resend-email.service";
 
-enum NotificationChannel {
+export enum NotificationChannel {
   EMAIL = "email",
 }
 
@@ -44,7 +44,7 @@ export const sendExternalNotificationsStep = task({
     console.log("[NOTIFICATIONS] Starting notification processing", {
       totalUsers: users.length,
       channels: channels,
-      mockMode: mockMode
+      mockMode: mockMode,
     });
 
     // Initialize result
@@ -66,7 +66,7 @@ export const sendExternalNotificationsStep = task({
       filteredCount: filteredUsers.length,
       originalCount: users.length,
       mockMode: mockMode,
-      testEmail: mockMode ? "hello@d-l.studio" : null
+      testEmail: mockMode ? "hello@d-l.studio" : null,
     });
 
     // Process filtered users
@@ -87,7 +87,7 @@ export const sendExternalNotificationsStep = task({
         if (channels.includes(NotificationChannel.EMAIL) && user.email) {
           await emailService.sendInactivityEmail(
             user.email,
-            "Champion", // TODO: get real user name if available
+            "", // TODO: get real user name if available
             user.daysSinceLastActivity || 0,
             user.hasWorkoutHistory || false
           );
@@ -96,16 +96,15 @@ export const sendExternalNotificationsStep = task({
             email: user.email,
             userId: user.id,
             daysSinceActivity: user.daysSinceLastActivity,
-            hasWorkoutHistory: user.hasWorkoutHistory
+            hasWorkoutHistory: user.hasWorkoutHistory,
           });
         }
-
       } catch (error) {
         const errorMsg = `Failed to send notification to user ${user.id}: ${error}`;
         console.error("[NOTIFICATIONS] Send failed", {
           userId: user.id,
           email: user.email,
-          error: String(error)
+          error: String(error),
         });
         result.errors.push(errorMsg);
       }
@@ -117,7 +116,9 @@ export const sendExternalNotificationsStep = task({
       usersWithoutEmails: result.usersWithoutEmails,
       emailsSent: result.emailsSent,
       errors: result.errors.length,
-      successRate: `${Math.round((result.emailsSent / Math.max(result.usersWithEmails, 1)) * 100)}%`
+      successRate: `${Math.round(
+        (result.emailsSent / Math.max(result.usersWithEmails, 1)) * 100
+      )}%`,
     });
     return result;
   },

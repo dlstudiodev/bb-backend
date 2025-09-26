@@ -21,7 +21,7 @@ const createResendClient = () => {
  * Sends an inactivity reminder email to a user.
  *
  * @param userEmail - Recipient email address
- * @param userName - User's name (optional, defaults to "Champion")
+ * @param userName - User's name (optional)
  * @param daysSinceLastActivity - Number of days since last activity
  * @param hasWorkoutHistory - Whether user has previous workout history
  * @returns Resend API response
@@ -29,15 +29,13 @@ const createResendClient = () => {
  */
 export const sendInactivityEmail = async (
   userEmail: string,
-  userName: string = "Champion",
+  userName: string = "",
   daysSinceLastActivity: number = 0,
   hasWorkoutHistory: boolean = false
 ) => {
   const resend = createResendClient();
 
-  const subject = hasWorkoutHistory
-    ? `${userName}, on te manque ! Reviens t'entraîner 💪`
-    : `${userName}, c'est le moment de commencer ! 🚀`;
+  const subject = "Time to get back in the game";
 
   const html = `
     <!DOCTYPE html>
@@ -45,50 +43,70 @@ export const sendInactivityEmail = async (
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Reviens t'entraîner !</title>
+        <title>Time to get back in the game</title>
         <style>
-            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
-            .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 10px; text-align: center; }
-            .content { padding: 30px 20px; }
-            .stats { background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; }
-            .cta-button { display: inline-block; background: #667eea; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; }
-            .footer { text-align: center; color: #666; font-size: 14px; margin-top: 40px; }
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { font-family: 'Helvetica Neue', Arial, sans-serif; background-color: #f5f5f5; }
+            .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; }
+            .header { background-color: #ffffff; padding: 40px 30px; text-align: center; }
+            .logo { max-width: 120px; height: auto; }
+            .content { padding: 40px 30px; }
+            .greeting { font-size: 24px; font-weight: 600; color: #2c2c2c; margin-bottom: 20px; }
+            .message { font-size: 16px; color: #555555; line-height: 1.6; margin-bottom: 30px; }
+            .stats { background-color: #f8f8f8; padding: 20px; border-left: 4px solid #2c2c2c; margin: 30px 0; }
+            .stats-label { font-size: 14px; color: #888888; text-transform: uppercase; letter-spacing: 0.5px; }
+            .stats-value { font-size: 18px; font-weight: 600; color: #2c2c2c; margin-top: 5px; }
+            .cta-container { text-align: center; margin: 40px 0; }
+            .cta-button {
+                display: inline-block;
+                background-color: #2c2c2c;
+                color: #ffffff;
+                padding: 16px 32px;
+                text-decoration: none;
+                font-weight: 600;
+                letter-spacing: 0.5px;
+                transition: background-color 0.3s ease;
+            }
+            .cta-button:hover { background-color: #1a1a1a; }
+            .footer { background-color: #f8f8f8; padding: 30px; text-align: center; }
+            .footer-text { font-size: 14px; color: #888888; margin-bottom: 10px; }
+            .unsubscribe { font-size: 12px; color: #aaaaaa; }
+            .unsubscribe a { color: #888888; text-decoration: none; }
         </style>
     </head>
     <body>
-        <div class="header">
-            <h1>Hey ${userName} ! 👋</h1>
-            <p>On remarque que tu n'es pas venu depuis un petit moment...</p>
-        </div>
-
-        <div class="content">
-            <div class="stats">
-                <h3>📊 Tes stats :</h3>
-                <p><strong>Dernière activité :</strong> Il y a ${daysSinceLastActivity} jour${daysSinceLastActivity > 1 ? 's' : ''}</p>
-                <p><strong>Historique :</strong> ${hasWorkoutHistory ? '✅ Tu as déjà fait des séances' : '🆕 Prêt à commencer ton parcours'}</p>
+        <div class="container">
+            <div class="header">
+                <img src="https://vmyrjwtqubjxgvenhxmt.supabase.co/storage/v1/object/public/marketing/logomail.png" alt="Barbar Coach" class="logo">
             </div>
 
-            ${hasWorkoutHistory ?
-              `<p>Tu étais sur une super lancée ! 🔥 Tes muscles t'attendent pour continuer sur cette voie.</p>
-               <p>Reprends là où tu t'étais arrêté et continue à progresser !</p>` :
-              `<p>C'est le moment parfait pour débuter ton parcours fitness ! 🌟</p>
-               <p>Commence par une séance simple et découvre tout ce qu'on a préparé pour toi.</p>`
-            }
+            <div class="content">
+                <div class="greeting">Hey${userName ? ` ${userName}` : ''}</div>
 
-            <div style="text-align: center;">
-                <a href="https://barbar.coach/workout" class="cta-button">
-                    ${hasWorkoutHistory ? 'Reprendre l\'entraînement' : 'Commencer maintenant'} 💪
-                </a>
+                <div class="message">
+                    We noticed you haven't trained in a while. Your next workout is waiting for you.
+                </div>
+
+                <div class="stats">
+                    <div class="stats-label">Last Activity</div>
+                    <div class="stats-value">${daysSinceLastActivity} day${daysSinceLastActivity > 1 ? 's' : ''} ago</div>
+                </div>
+
+                <div class="message">
+                    The best time to start is now. Consistency is everything.
+                </div>
+
+                <div class="cta-container">
+                    <a href="https://barbar.coach/workout" class="cta-button">START TRAINING</a>
+                </div>
             </div>
 
-            <p style="margin-top: 30px;">
-                <small>Tu ne veux plus recevoir ces rappels ? <a href="https://barbar.coach/unsubscribe">Se désabonner</a></small>
-            </p>
-        </div>
-
-        <div class="footer">
-            <p>L'équipe Barbar Coach 🏋️‍♂️</p>
-            <p>Garde le rythme, on croit en toi !</p>
+            <div class="footer">
+                <div class="footer-text">Barbar Coach</div>
+                <div class="unsubscribe">
+                    <a href="https://barbar.coach/unsubscribe">Unsubscribe</a>
+                </div>
+            </div>
         </div>
     </body>
     </html>

@@ -2,18 +2,17 @@
 
 ## 🎯 État Actuel du Projet
 
-### ✅ Implémenté
+### ✅ Implémenté (Dernière mise à jour : 26 sept 2025)
 - **Hono API** : Routes health et workflows
-- **trigger.dev** : Workflow principal avec Step 1 fonctionnelle
-- **Supabase** : Configuration et connexion établie
-- **Domain layer** : User types, repository, service complets
-- **Step atomique** : find-inactive-users avec vraies données
-- **TypeScript** : Types et interfaces cohérentes
-
-### 🔄 En Cours / À Faire
-- **Step 2** : Anti-spam rules (simulation actuelle)
-- **Step 3** : Send notifications (email/push)
-- **Scheduler** : Configuration CRON automatique
+- **trigger.dev v4** : Workflow complet fonctionnel optimisé (single step processing)
+- **Supabase** : Configuration, connexion et fonction PostgreSQL anti-spam intégrée
+- **Domain layer** : User types enrichis avec email, services complets
+- **Step 1** : find-inactive-users avec vraies données Supabase
+- **Step 2** : send-external-notifications avec Resend email service + filtrage mockMode
+- **Email Service** : Resend API intégré avec templates HTML personnalisés français
+- **CRON Scheduler** : daily-email-reminder déployé automatiquement (test: 3min, prod: 8AM)
+- **Anti-spam Logic** : Timing CRON (Supabase midnight + email 8AM) + cooldown SQL function
+- **Data Accuracy** : Calculs d'inactivité vérifiés et fonctionnels (30j confirmé)
 
 ---
 
@@ -38,26 +37,27 @@
 └─────────┬───────────┘
           │
           ▼
-┌─────────────────────┐    ┌─────────────────────┐    ┌─────────────────────┐
-│    STEP 1           │    │    STEP 2           │    │    STEP 3           │
-│                     │    │                     │    │                     │
-│ find-inactive-      │    │ apply-antispam      │    │ send-notifications  │
-│ users.step          │    │ rules.step          │    │ .step               │
-│                     │    │                     │    │                     │
-└─────────┬───────────┘    └─────────┬───────────┘    └─────────┬───────────┘
-          │                          │                          │
-          ▼                          ▼                          ▼
-┌─────────────────────┐    ┌─────────────────────┐    ┌─────────────────────┐
-│ DOMAIN SERVICES     │    │ DOMAIN SERVICES     │    │ INFRASTRUCTURE      │
-│                     │    │                     │    │                     │
-│ UserService         │    │ AntiSpamService     │    │ EmailService        │
-│ UserRepository      │    │ NotificationLog     │    │ PushService         │
-│        ↕            │    │        ↕            │    │                     │
-│ INFRASTRUCTURE      │    │ INFRASTRUCTURE      │    │                     │
-│ SupabaseAdapter     │    │ SupabaseAdapter     │    │                     │
-│                     │    │ EmailClient         │    │                     │
-│                     │    │ PushClient          │    │                     │
-└─────────────────────┘    └─────────────────────┘    └─────────────────────┘
+┌─────────────────────┐    ┌─────────────────────┐
+│    STEP 1           │    │    STEP 2           │
+│                     │    │                     │
+│ find-inactive-      │    │ send-external-      │
+│ users.step          │    │ notifications.step  │
+│ (avec anti-spam)    │    │ (avec enrichissement│
+│                     │    │  emails)            │
+└─────────┬───────────┘    └─────────┬───────────┘
+          │                          │
+          ▼                          ▼
+┌─────────────────────┐    ┌─────────────────────┐
+│ DOMAIN SERVICES     │    │ INFRASTRUCTURE      │
+│                     │    │                     │
+│ UserService         │    │ EmailService        │
+│ UserRepository      │    │ (Resend API)        │
+│        ↕            │    │                     │
+│ INFRASTRUCTURE      │    │                     │
+│ SupabaseAdapter     │    │                     │
+│ (fonction SQL       │    │                     │
+│  anti-spam)         │    │                     │
+└─────────────────────┘    └─────────────────────┘
 ```
 
 ## 2. Principes de Conception
@@ -88,15 +88,15 @@ Application Core (Règles Métier)
 ```
 [Déclencheur] → [trigger.dev Job] → [Business Logic] → [Infrastructure]
       │                │                    │                │
-   API/Cron        Orchestration        Anti-spam      Supabase/Email
-                   Step by Step         Logic          Services
+     CRON          Orchestration         Steps          Supabase/Email
+   (8AM UTC)       Step by Step        (2 steps)         Services
 ```
 
-### 3.1 Séquence Détaillée
-1. **Déclenchement** (API ou Cron) → trigger.dev job
-2. **Étape 1** : Récupération des utilisateurs inactifs
-3. **Étape 2** : Application des règles anti-spam
-4. **Étape 3** : Envoi des notifications (email + in-app)
+### 3.1 Séquence Détaillée (Implémentée)
+1. **Déclenchement** : CRON daily-email-reminder (8AM UTC) → trigger.dev workflow
+2. **Step 1** : find-inactive-users → Supabase query avec fonction PostgreSQL anti-spam
+3. **Enrichissement** : getUserEmailsFromIds() dans le workflow principal
+4. **Step 2** : send-external-notifications → Resend API avec mock mode/filtrage hello@d-l.studio
 
 ## 4. Structure de Projet Hono - YAGNI & Scalable
 
@@ -109,45 +109,35 @@ src/
 │   ├── workflows/                   # Workflows principaux
 │   │   └── remind-inactive-users.ts # Workflow complet orchestration
 │   ├── schedulers/                  # CRON schedulers par fréquence
-│   │   ├── daily.scheduler.ts       # Jobs quotidiens (inactive users, cleanup...)
-│   │   ├── weekly.scheduler.ts      # Jobs hebdomadaires
-│   │   └── monthly.scheduler.ts     # Jobs mensuels
+│   │   └── daily-email-reminder.ts # Email quotidien utilisateurs inactifs (8AM UTC)
 │   └── steps/                       # Briques réutilisables
 │       ├── find-inactive-users.ts
-│       ├── apply-antispam.ts
-│       └── send-notifications.ts
+│       └── send-external-notifications.ts
 ├── domain/                          # Logique métier pure
 │   ├── users/
 │   │   ├── user.types.ts           # Interfaces & types
 │   │   ├── user.service.ts         # Logique métier Users
 │   │   └── user.repository.ts      # Interface repository
-│   └── notifications/
-│       ├── notification.types.ts   # Types Notifications
-│       ├── notification.service.ts # Logique anti-spam & notifications
-│       └── notification.repository.ts # Interface repository
 └── infrastructure/                  # Adapters & clients externes
     ├── database/
-    │   ├── supabase-user.adapter.ts     # User repository impl
-    │   └── supabase-notification.adapter.ts # Notification repository impl
-    ├── email/
-    │   └── email.client.ts              # Client API email (Gmail, Sendgrid...)
-    └── messaging/
-        └── push-notification.client.ts  # Client push (Firebase, Apple...)
+    │   └── supabase-user.adapter.ts     # User repository impl
+    └── email/
+        └── resend-email.service.ts      # Resend API service
 ```
 
 ## 5. Flux d'Exécution - Cas "Relance Utilisateurs Inactifs"
 
 ### 5.1 Déclenchement
 ```
-[POST /workflows/inactive-users] → [inactive-users.job.ts]
+[POST /workflows/remind-inactive-users] → [remind-inactive-users.ts]
+[CRON daily-email-reminder (8AM UTC)] → [remind-inactive-users.ts]
 ```
 
 ### 5.2 Orchestration trigger.dev
 ```
-inactive-users.job.ts
-├── Step 1: find-inactive-users.job.ts
-├── Step 2: apply-antispam.job.ts
-└── Step 3: send-notifications.job.ts
+remind-inactive-users.ts
+├── Step 1: find-inactive-users.ts (avec anti-spam SQL intégré)
+└── Step 2: send-external-notifications.ts (avec enrichissement emails)
 ```
 
 ### 5.3 Steps → Domain → Infrastructure
